@@ -1,3 +1,4 @@
+# Function to get the latest framework patch URL
 get_framework_patch_url() {
     FWPATCH_GH_URL="https://api.github.com/repos/changhuapeng/FrameworkPatch/releases/latest"
     FILE="classes.dex"
@@ -5,47 +6,30 @@ get_framework_patch_url() {
     wget --no-check-certificate -qO- "$FWPATCH_GH_URL" | sed -nE "$regex"
 }
 
+# Function to convert smali path to dex file name
 classes_path_to_dex() {
-    path="$1"
-    regex='s@^.+\/(smali(_classes[[:digit:]]+)*)\/.*\.smali$@\1@p'
-    classes="$(echo "$path" | sed -nE "$regex")"
-    case "$classes" in
-        "smali" )
-            echo "classes.dex"
-            ;;
-        *)
-            echo "$(echo "$classes" | cut -d'_' -f2).dex"
-            ;;
-    esac
+    local path="$1"
+    local classes
+    classes=$(echo "$path" | sed -nE 's@^.+\/(smali(_classes[[:digit:]]+)*)\/.*\.smali$@\1@p')
+
+    if [ "$classes" == "smali" ]; then
+        echo "classes.dex"
+    else
+        echo "$(echo "$classes" | cut -d'_' -f2).dex"
+    fi
 }
 
+# Function to get the context value from code
 get_context_val() {
-    code="$1"
-    context="$(echo "$code" | grep "# Landroid/content/Context;")"
+    local code="$1"
+    local context
+
+    context=$(echo "$code" | grep -E "# Landroid/content/Context;|Landroid/content/Context;->|attach\(Landroid/content/Context;\)" | head -n1)
+
     if [ -n "$context" ]; then
-        context="$(echo "$context" | sed -e 's/^[[:blank:]]*//')"
-        context="$(echo "$context" | cut -d',' -f1 | cut -d' ' -f2)"
-    else
-        context="$(echo "$code" | grep "Landroid/content/Context;->" | head -n1)"
-        if [ -n "$context" ]; then
-            regex='s/^.+\{(.[[:digit:]]+)\}$/\1/p'
-            context="$(echo "$context" | cut -d',' -f1)"
-            context="$(echo "$context" | sed -nE "$regex")"
-        else
-            context="$(echo "$code" | grep "attach(Landroid/content/Context;)" | tail -n1)"
-            if [ -n "$context" ]; then
-                context="$(echo "$context" | cut -d',' -f1-2)"
-                regex='s/^.+\{.*,[[:blank:]](.[[:digit:]]+)\}$/\1/p'
-                context="$(echo "$context" | sed -nE "$regex")"
-            else
-                context="$(echo "$code" | grep "Landroid/content/Context;)" | tail -n1)"
-                if [ -n "$context" ]; then
-                    context="$(echo "$context" | cut -d',' -f1)"
-                    regex='s/^.+\{(.[[:digit:]]+)\}$/\1/p'
-                    context="$(echo "$context" | sed -nE "$regex")"
-                fi
-            fi
-        fi
+        context=$(echo "$context" | sed -nE 's/^.*\{(.[[:digit:]]+)\}$/\1/p')
+        [ -z "$context" ] && context=$(echo "$context" | cut -d',' -f1)
     fi
+
     echo "$context"
 }
